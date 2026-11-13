@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: pos_database
+    restart: always
+    environment:
+      POSTGRES_USER: admin_pos
+      POSTGRES_PASSWORD: pos_password_seguro
+      POSTGRES_DB: sistema_ventas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema_pos_maestro.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_pos -d sistema_ventas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: pos_backend
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgres://admin_pos:pos_password_seguro@db:5432/sistema_ventas
+      PORT: 4000
+      NEGOCIO_NOMBRE: Mi Negocio
+      SCHEMA_PATH: /app/schema_pos_maestro.sql
+      UPLOAD_DIR: /app/uploads
+      FRONTEND_ORIGIN: http://localhost:3000
+      POS_SESSION_SECRET: ${POS_SESSION_SECRET:-}
+    volumes:
+      - ./schema_pos_maestro.sql:/app/schema_pos_maestro.sql:ro
+      - product_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: pos_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:4000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  product_uploads:

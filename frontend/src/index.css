@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #17221f;
+  background: #f7f9f8;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.print-only {
+  display: none;
+}
+
+::selection {
+  color: #116347;
+  background: #d7eee3;
+}
+
+html.dark {
+  color-scheme: dark;
+  background: #020617;
+}
+
+@layer utilities {
+  .dark .bg-canvas { background-color: #020617; }
+  .dark .bg-white,
+  .dark .bg-white\/95 { background-color: #0f172a; }
+  .dark .bg-gray-50,
+  .dark .bg-gray-50\/80,
+  .dark .bg-gray-50\/70,
+  .dark .bg-slate-50 { background-color: #111c2f; }
+  .dark .bg-gray-100,
+  .dark .bg-slate-100 { background-color: #1e293b; }
+  .dark .bg-emerald-50 { background-color: #052e25; }
+  .dark .bg-amber-50,
+  .dark .bg-yellow-50 { background-color: #3b2b0b; }
+  .dark .bg-rose-50,
+  .dark .bg-red-50 { background-color: #3f111d; }
+  .dark .bg-blue-50,
+  .dark .bg-sky-50 { background-color: #102a43; }
+  .dark .border-gray-50,
+  .dark .border-gray-100,
+  .dark .border-slate-100,
+  .dark .border-gray-200,
+  .dark .border-slate-200 { border-color: #334155; }
+  .dark .text-slate-900,
+  .dark .text-slate-800 { color: #e2e8f0; }
+  .dark .text-slate-700,
+  .dark .text-slate-600 { color: #cbd5e1; }
+  .dark .text-slate-500,
+  .dark .text-slate-400 { color: #94a3b8; }
+  .dark .text-emerald-700,
+  .dark .text-emerald-800 { color: #6ee7b7; }
+  .dark .text-amber-700,
+  .dark .text-amber-800,
+  .dark .text-yellow-700 { color: #fcd34d; }
+  .dark .text-rose-600,
+  .dark .text-rose-700,
+  .dark .text-red-700 { color: #fda4af; }
+  .dark .text-blue-700,
+  .dark .text-sky-700 { color: #7dd3fc; }
+  .dark .shadow-sm,
+  .dark .shadow-panel { --tw-shadow-color: rgb(0 0 0 / 0.25); }
+  .dark input:not([type="checkbox"]):not([type="radio"]),
+  .dark select,
+  .dark textarea {
+    color: #e2e8f0;
+    background-color: #0f172a;
+    border-color: #334155;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder { color: #64748b; }
+  .dark option { color: #e2e8f0; background-color: #0f172a; }
+}
+
+@media print {
+  .app-shell header,
+  .app-shell aside,
+  .app-shell nav,
+  .app-shell main > p,
+  .report-actions,
+  .report-filters,
+  .report-toolbar { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  .pos-print-report {
+    display: none !important;
+  }
+
+  html.report-printing .pos-print-report {
+    display: block !important;
+  }
+}

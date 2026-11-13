@@ -1,0 +1,3 @@
+ALTER TABLE public.ventas
+  ADD COLUMN IF NOT EXISTS usuario_id UUID REFERENCES public.pos_users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS monto_recibido NUMERIC(10,2) NOT NULL DEFAULT 0;
