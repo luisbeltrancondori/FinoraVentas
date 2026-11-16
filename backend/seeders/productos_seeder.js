@@ -1,41 +1,17 @@
 const { randomInt } = require('node:crypto');
 const { initializeDatabase, pool } = require('../config/db');
 
-const CATEGORY_NAMES = [
-  'Bebidas',
-  'Abarrotes',
-  'Snacks',
-  'Lácteos',
-  'Desayuno',
-  'Conservas',
-  'Condimentos',
-  'Limpieza',
-  'Cuidado personal',
-  'Higiene',
-];
-const BRAND_NAMES = ['Coca-Cola', 'Pil', 'Local'];
-const PRESENTATION_NAMES = [
-  'Unidad',
-  'Botella 2L',
-  'Botella 1L',
-  'Lata 250ml',
-  'Bolsa 400g',
-  'Caja 300g',
-  'Frasco 250g',
-  'Lata 170g',
-  'Lata 425g',
-  'Bolsa 200g',
-  'Bolsa 1kg',
-  'Bolsa 500g',
-  'Botella 500ml',
-  'Botella 400ml',
-  'Paquete 125g',
-  'Paquete x4',
-  'Paquete x100',
-  'Paquete 120g',
-  'Bolsa 100g',
-];
-const SUPPLIER_NAME = 'Distribuidora Central';
+const BUSINESS_ID = '31fd88e6-4815-4ef1-8e7f-52a7568645ac';
+const PRODUCT_LIMIT = 30;
+const PRESENTATION_ALIASES = new Map([
+  ['Bolsa 400g', 'Bolsa 500g'],
+  ['Bolsa 200g', 'Bolsa 250g'],
+  ['Caja 300g', 'Caja'],
+  ['Lata 425g', 'Lata 170g'],
+  ['Botella 400ml', 'Botella 500ml'],
+  ['Paquete 125g', 'Paquete'],
+  ['Paquete x100', 'Paquete'],
+]);
 
 const productDefinitions = [
   { nombre: 'Coca-Cola 2L', category: 'Bebidas', brand: 'Coca-Cola', presentation: 'Botella 2L', cost: 15, price: 23, stock: 48, expirationDays: 180, offer: 20.5, image: 'photo-1554866585-cd94860890b7', description: 'Bebida gaseosa de sabor original para compartir en familia.\\nIdeal para reuniones, comidas y celebraciones.', specifications: 'Contenido: 2L\\nSabor: Original' },
@@ -100,39 +76,14 @@ function imageUrl(photoId) {
   return `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=800&q=80`;
 }
 
-async function insertOrGetNamedRows(client, table, names, negocioId) {
+async function loadNamedRows(client, table, negocioId) {
   const rows = new Map();
-  for (const name of names) {
-    const result = await client.query(
-      `INSERT INTO public.${table} (negocio_id, nombre)
-       VALUES ($1, $2)
-       ON CONFLICT (negocio_id, nombre) DO UPDATE SET nombre = EXCLUDED.nombre
-       RETURNING id, nombre`,
-      [negocioId, name],
-    );
-    rows.set(name, result.rows[0].id);
-  }
+  const result = await client.query(
+    `SELECT id, nombre FROM public.${table} WHERE negocio_id = $1`,
+    [negocioId],
+  );
+  result.rows.forEach((row) => rows.set(row.nombre, row.id));
   return rows;
-}
-
-async function insertOrGetSupplier(client, negocioId) {
-  const existing = await client.query(
-    `SELECT id
-       FROM public.proveedores
-      WHERE negocio_id = $1 AND LOWER(BTRIM(nombre_empresa)) = LOWER($2)
-      ORDER BY creado_en, id
-      LIMIT 1`,
-    [negocioId, SUPPLIER_NAME],
-  );
-  if (existing.rowCount) return existing.rows[0].id;
-
-  const inserted = await client.query(
-    `INSERT INTO public.proveedores (negocio_id, nombre_empresa, contacto_nombre, telefono, direccion)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id`,
-    [negocioId, SUPPLIER_NAME, 'Atención a clientes', '70000000', 'Bolivia'],
-  );
-  return inserted.rows[0].id;
 }
 
 async function generateUniqueBarcode(client, negocioId, generatedBarcodes) {
@@ -151,17 +102,32 @@ async function generateUniqueBarcode(client, negocioId, generatedBarcodes) {
   throw new Error('No se pudo generar un código de barras único después de varios intentos.');
 }
 
-async function seedProducts(client, negocioId, categories, brands, presentations, supplierId) {
+async function seedProducts(client, negocioId, categories, brands, presentations, suppliers) {
   const generatedBarcodes = new Set();
   const seededProducts = [];
 
-  for (const item of productDefinitions) {
+  for (const [index, item] of productDefinitions.slice(0, PRODUCT_LIMIT).entries()) {
+    const categoryId = categories.get(item.category);
+    const brandId = brands.get(item.brand === 'Local' ? 'Sin marca' : item.brand);
+    const presentationName = presentations.has(item.presentation)
+      ? item.presentation
+      : PRESENTATION_ALIASES.get(item.presentation);
+    const presentationId = presentations.get(presentationName);
+    const supplier = suppliers[index % suppliers.length];
+
+    if (!categoryId) throw new Error(`No existe la categoría "${item.category}" para el negocio ${negocioId}.`);
+    if (!brandId) throw new Error(`No existe la marca "${item.brand}" para el negocio ${negocioId}.`);
+    if (!presentationId) {
+      throw new Error(`No existe la presentación "${item.presentation}" (o su equivalencia) para el negocio ${negocioId}.`);
+    }
+    if (!supplier) throw new Error(`No hay proveedores registrados para el negocio ${negocioId}.`);
+
     const values = {
       negocioId,
-      categoryId: categories.get(item.category),
-      brandId: brands.get(item.brand),
-      presentationId: presentations.get(item.presentation),
-      supplierId,
+      categoryId,
+      brandId,
+      presentationId,
+      supplierId: supplier.id,
       nombre: item.nombre,
       precio_compra: item.cost,
       precio_venta: item.price,
@@ -240,17 +206,28 @@ async function main() {
     await client.query("SELECT pg_advisory_xact_lock(hashtext('finora-productos-seeder'))");
 
     const businessResult = await client.query(
-      'SELECT id, nombre FROM public.negocios ORDER BY creado_en ASC, id ASC LIMIT 1',
+      'SELECT id, nombre FROM public.negocios WHERE id = $1',
+      [BUSINESS_ID],
     );
-    if (!businessResult.rowCount) throw new Error('No hay negocios registrados para asociar los productos.');
+    if (!businessResult.rowCount) throw new Error(`No existe el negocio ${BUSINESS_ID}.`);
     const business = businessResult.rows[0];
     console.log(`Negocio seleccionado: ${business.nombre} (${business.id})`);
 
-    const categories = await insertOrGetNamedRows(client, 'categorias', CATEGORY_NAMES, business.id);
-    const brands = await insertOrGetNamedRows(client, 'marcas', BRAND_NAMES, business.id);
-    const presentations = await insertOrGetNamedRows(client, 'presentaciones', PRESENTATION_NAMES, business.id);
-    const supplierId = await insertOrGetSupplier(client, business.id);
-    const products = await seedProducts(client, business.id, categories, brands, presentations, supplierId);
+    const categories = await loadNamedRows(client, 'categorias', business.id);
+    const brands = await loadNamedRows(client, 'marcas', business.id);
+    const presentations = await loadNamedRows(client, 'presentaciones', business.id);
+    const suppliersResult = await client.query(
+      `SELECT id, nombre_empresa
+         FROM public.proveedores
+        WHERE negocio_id = $1
+        ORDER BY nombre_empresa, id`,
+      [business.id],
+    );
+    const suppliers = suppliersResult.rows;
+    if (!categories.size || !brands.size || !presentations.size || !suppliers.length) {
+      throw new Error('Faltan categorías, marcas, presentaciones o proveedores. Ejecuta primero sus seeders.');
+    }
+    const products = await seedProducts(client, business.id, categories, brands, presentations, suppliers);
 
     await client.query('COMMIT');
     transactionOpen = false;
@@ -259,9 +236,9 @@ async function main() {
       categorias: Object.fromEntries(categories),
       marcas: Object.fromEntries(brands),
       presentaciones: Object.fromEntries(presentations),
-      proveedor: supplierId,
+      proveedores: suppliers.map(({ id, nombre_empresa }) => ({ id, nombre_empresa })),
     }, null, 2));
-    console.log(`Productos insertados o actualizados: ${products.length}`);
+    console.log(`Productos insertados o actualizados: ${products.length} de ${PRODUCT_LIMIT}`);
     products.forEach((product) => {
       console.log(`- ${product.nombre}: ${product.id} (código ${product.codigo_barras})`);
     });

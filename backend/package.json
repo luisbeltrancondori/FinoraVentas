@@ -4,7 +4,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "seed:products": "node seeders/productos_seeder.js"
+    "seed:products": "node seeders/productos_seeder.js",
+    "seed:providers": "node seeders/proveedores_seeder.js",
+    "seed:presentations": "node seeders/presentaciones_seeder.js",
+    "seed:brands": "node seeders/marcas_seeder.js",
+    "seed:categories": "node seeders/categorias_seeder.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
