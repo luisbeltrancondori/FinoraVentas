@@ -22,6 +22,10 @@ Sistema local de punto de venta con React/Vite, Express y PostgreSQL multi-sucur
 
 El backend y PostgreSQL están disponibles en `http://localhost:4000` y `localhost:5432`. La migración `backend/migrations/001_identity_inventory.sql` se aplica de forma aditiva al iniciar el backend; no elimina datos ni recrea el volumen.
 
+Los pedidos enviados desde el carrito público se registran como proformas web y se consultan desde **Ventas → Proformas Web**. Al convertir un pedido se selecciona el método de pago; los pagos inmediatos requieren un turno de caja abierto, y el historial de ventas y el inventario se actualizan en una sola transacción.
+
+Los banners promocionales se administran desde **Configuración y administración → Banners / Carrusel**. El carrusel público muestra banners activos por sucursal; desde la misma pantalla se configura la fecha y hora de fin que utiliza el contador de ofertas. La migración `backend/migrations/016_banners_carrusel.sql` se aplica al iniciar el backend.
+
 ## Acceso y permisos
 
 - Las sesiones se guardan en PostgreSQL y usan cookies `HttpOnly`.

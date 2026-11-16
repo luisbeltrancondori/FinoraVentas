@@ -58,6 +58,7 @@ app.use('/api', require('./routes/public.routes'));
 app.use('/api', requireAuth);
 app.use('/api', require('./routes/reports.routes'));
 app.use('/api', require('./routes/admin.routes'));
+app.use('/api', require('./routes/banners.routes'));
 app.use('/api', require('./routes/inventory.routes'));
 app.use('/api', require('./routes/categorias.routes'));
 app.use('/api', productRoutes);
@@ -80,13 +81,13 @@ app.use((error, _req, res, _next) => {
     });
   }
   if (error.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ error: 'La imagen no puede superar 5 MB.', code: 'UPLOAD_TOO_LARGE' });
+    return res.status(400).json({ error: 'La imagen supera el tamaño máximo permitido.', code: 'UPLOAD_TOO_LARGE' });
   }
   if (error.code === 'LIMIT_UNEXPECTED_FILE') {
     return res.status(400).json({ error: 'Solo se permite una imagen por producto.', code: 'INVALID_UPLOAD' });
   }
   if (error.code === 'LIMIT_FIELD_COUNT' || error.code === 'LIMIT_FIELD_VALUE') {
-    return res.status(400).json({ error: 'Los datos del producto exceden el límite permitido.', code: 'INVALID_UPLOAD' });
+    return res.status(400).json({ error: 'Los datos enviados junto con el archivo exceden el límite permitido.', code: 'INVALID_UPLOAD' });
   }
   if (error.code === '23505') {
     return res.status(409).json({

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Archive, ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, Boxes, Building2, ChevronDown, ChevronLeft, ChevronRight, ClipboardList,
-  FileText, HelpCircle, LayoutDashboard, LogOut, Package, PanelsTopLeft, Shield, ShoppingCart, Tag, Tags, UserRound, Users, Wallet, X,
+  FileText, HelpCircle, Image, LayoutDashboard, LogOut, Package, PanelsTopLeft, Shield, ShoppingCart, Tag, Tags, UserRound, Users, Wallet, X,
 } from 'lucide-react';
 import HelpCenterModal from './HelpCenterModal.jsx';
 
@@ -12,6 +12,7 @@ const groups = [
   { title: 'Ventas', icon: ArrowUpRight, items: [
     { id: 'pos', label: 'Nueva venta / POS', icon: ShoppingCart, permission: 'sales.write' },
     { id: 'sales', label: 'Historial de ventas', icon: ArrowUpRight, permission: 'sales.read' },
+    { id: 'proformas', label: 'Proformas Web', icon: ClipboardList, permission: 'sales.read' },
     { id: 'clients', label: 'Clientes', icon: Users, permission: 'sales.read' },
   ] },
   { title: 'Compras', icon: ArrowDownToLine, items: [
@@ -34,6 +35,7 @@ const groups = [
   { title: 'Configuración y administración', icon: Shield, adminOnly: true, items: [
     { id: 'branches', label: 'Sucursales / negocios', icon: Building2 },
     { id: 'users', label: 'Usuarios, roles y permisos', icon: Users },
+    { id: 'banners', label: 'Banners / Carrusel', icon: Image },
     { id: 'profile', label: 'Perfil de usuario', icon: UserRound, anyRole: true },
   ] },
 ];

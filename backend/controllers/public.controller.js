@@ -1,20 +1,20 @@
 const { pool } = require('../config/db');
 const { ApiError, requireUuid } = require('../utils/http');
 
-async function catalog(_req, res) {
+async function findPublicStoreBusiness(client = pool) {
   const configuredBusinessId = process.env.PUBLIC_STORE_BUSINESS_ID;
   const requestedBusinessId = configuredBusinessId || '';
 
   let business;
   if (requestedBusinessId) {
     const businessId = requireUuid(requestedBusinessId, 'negocio_id');
-    const result = await pool.query(
+    const result = await client.query(
       'SELECT id, nombre, nit, direccion, telefono FROM negocios WHERE id = $1',
       [businessId],
     );
     business = result.rows[0];
   } else {
-    const result = await pool.query(
+    const result = await client.query(
       `SELECT id, nombre, nit, direccion, telefono
          FROM negocios
         WHERE LOWER(BTRIM(nombre)) = LOWER($1)
@@ -29,6 +29,11 @@ async function catalog(_req, res) {
   }
 
   if (!business) throw new ApiError(404, 'No se encontró la tienda pública configurada.');
+  return business;
+}
+
+async function catalog(_req, res) {
+  const business = await findPublicStoreBusiness();
 
   const products = await pool.query(
     `SELECT p.id, p.nombre, p.codigo_barras, p.imagen_url,
@@ -81,4 +86,4 @@ async function createContactMessage(req, res) {
   });
 }
 
-module.exports = { catalog, createContactMessage };
+module.exports = { catalog, createContactMessage, findPublicStoreBusiness };

@@ -19,6 +19,8 @@ import Contacto from './components/Contacto.jsx';
 
 const DashboardPage = lazy(() => import('./components/DashboardPage.jsx'));
 const ReportsPage = lazy(() => import('./components/ReportsPage.jsx'));
+const BannersAdminPage = lazy(() => import('./components/BannersAdminPage.jsx'));
+const ProformasPage = lazy(() => import('./components/ProformasPage.jsx'));
 
 const pageTitles = {
   dashboard: 'Resumen',
@@ -26,6 +28,7 @@ const pageTitles = {
   cash: 'Caja y turno',
   pos: 'Nueva venta / POS',
   sales: 'Historial de ventas',
+  proformas: 'Proformas Web',
   clients: 'Clientes',
   'purchase-new': 'Nueva compra',
   purchases: 'Historial de compras',
@@ -39,6 +42,7 @@ const pageTitles = {
   'adjust-positive': 'Ajustes Positivos',
   'adjust-negative': 'Ajustes Negativos',
   branches: 'Sucursales / negocios',
+  banners: 'Banners / Carrusel',
   users: 'Usuarios, roles y permisos',
   profile: 'Perfil de usuario',
 };
@@ -289,8 +293,10 @@ export default function App() {
     content = <InventoryPage view={page} products={products} negocioId={negocioId} business={currentBusiness} canManage={can('products.manage')} onRefresh={refreshInventory} notify={notify} onNavigate={setPage} />;
   } else if (page === 'categories') {
     content = <CategoriasPage negocioId={negocioId} canManage={can('products.manage')} notify={notify} />;
-  }   else if (page === 'sales') content = <SalesPage negocioId={negocioId} products={products} business={currentBusiness} canManage={can('sales.write')} onRefresh={onSaleRefresh} notify={notify} />;
+  } else if (page === 'sales') content = <SalesPage negocioId={negocioId} products={products} business={currentBusiness} canManage={can('sales.write')} onRefresh={onSaleRefresh} notify={notify} />;
+  else if (page === 'proformas') content = <ProformasPage negocioId={negocioId} business={currentBusiness} cashier={user.nombre} canManage={can('sales.write')} onSaleRefresh={onSaleRefresh} notify={notify} />;
   else if (page === 'clients') content = <ClientesPage negocioId={negocioId} canManage={can('sales.write')} notify={notify} />;
+  else if (page === 'banners') content = <BannersAdminPage negocioId={negocioId} notify={notify} />;
   else if (page === 'purchases' || page === 'purchase-new') {
     content = <PurchasesPage products={products} negocioId={negocioId} business={currentBusiness} notify={notify} onRefresh={refreshInventory} canManage={can('purchases.write')} openFormInitially={page === 'purchase-new'} onNavigate={setPage} />;
   } else if (page === 'cash') content = <CashPage negocioId={negocioId} turn={turn} onRefresh={onSaleRefresh} notify={notify} />;

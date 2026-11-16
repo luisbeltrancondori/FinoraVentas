@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight, LoaderCircle, MapPin, MessageCircle, PackageOpen,
-  Search, ShieldCheck, ShoppingCart, UserRound, X,
+  LoaderCircle, MapPin, MessageCircle, PackageOpen,
+  Plus, Search, ShoppingCart, UserRound, X,
 } from 'lucide-react';
 import { Link, NavLink } from 'react-router-dom';
 import { api, assetUrl } from '../api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import CartDrawer from './CartDrawer.jsx';
+import HeroCarousel from './HeroCarousel.jsx';
+import OfferCountdown from './OfferCountdown.jsx';
 import ProductDetailModal from './ProductDetailModal.jsx';
 import logo from '../assets/Logo de Tienda Forty Hogar.png';
 
@@ -18,6 +20,7 @@ const currency = new Intl.NumberFormat('es-BO', {
 });
 
 function ProductCard({ product, onViewDetails }) {
+  const { addItem } = useCart();
   const regularPrice = Number(product.precio_venta) || 0;
   const offerPrice = Number(product.precio_oferta);
   const hasOfferPrice = product.precio_oferta !== null
@@ -31,14 +34,15 @@ function ProductCard({ product, onViewDetails }) {
   const discount = onOffer ? Math.round((1 - offerPrice / regularPrice) * 100) : 0;
   const image = product.imagen_url ? assetUrl(product.imagen_url) : '';
   const message = encodeURIComponent(`Hola, quisiera consultar disponibilidad de ${product.nombre}.`);
+  const inStock = Number(product.stock_actual) > 0;
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-100 hover:shadow-lg hover:shadow-emerald-950/5">
-      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-slate-50 p-4">
+      <div className="relative flex h-48 w-full items-center justify-center overflow-hidden bg-slate-50">
         {onOffer && <span className="absolute left-3 top-3 z-10 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-emerald-800">-{discount}% OFF</span>}
         <button type="button" onClick={() => onViewDetails(product)} aria-label={`Ver detalles de ${product.nombre}`} className="grid h-full w-full place-items-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500">
           {image
-            ? <img src={image} alt="" loading="lazy" className="h-full w-full object-contain transition duration-300 group-hover:scale-105" />
+            ? <img src={image} alt="" loading="lazy" className="h-full w-full object-contain" />
             : <PackageOpen size={42} strokeWidth={1.3} className="text-slate-300" />}
         </button>
       </div>
@@ -52,14 +56,25 @@ function ProductCard({ product, onViewDetails }) {
           {onOffer && <p className="text-xs text-slate-400 line-through">{currency.format(regularPrice)}</p>}
           <p className={`font-bold ${onOffer ? 'text-xl text-emerald-700' : 'text-lg text-slate-800'}`}>{currency.format(onOffer ? offerPrice : regularPrice)}</p>
         </div>
-        <a
-          href={`https://wa.me/${SHOP_WHATSAPP}?text=${message}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-3 text-xs font-bold text-white transition hover:border-emerald-700 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/20"
-        >
-          <MessageCircle size={15} /> Consultar
-        </a>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => addItem(product)}
+            disabled={!inStock}
+            aria-label={`Agregar ${product.nombre} al carrito`}
+            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2 text-[10px] font-bold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:gap-2 sm:px-3 sm:text-xs"
+          >
+            <Plus size={15} /> Agregar
+          </button>
+          <a
+            href={`https://wa.me/${SHOP_WHATSAPP}?text=${message}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-bold text-emerald-800 transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 sm:gap-2 sm:px-3 sm:text-xs"
+          >
+            <MessageCircle size={15} /> Consultar
+          </a>
+        </div>
       </div>
     </article>
   );
@@ -87,10 +102,13 @@ function ProductSection({ title, description, products, emptyText, featured = fa
 export default function Storefront({ onEmployeeLogin }) {
   const { itemCount } = useCart();
   const [products, setProducts] = useState([]);
+  const [banners, setBanners] = useState([]);
+  const [offersDeadline, setOffersDeadline] = useState(null);
   const [business, setBusiness] = useState(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const [bannersLoading, setBannersLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -110,6 +128,32 @@ export default function Storefront({ onEmployeeLogin }) {
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api('/api/banners'),
+      api('/api/public/ofertas-vencimiento'),
+    ])
+      .then(([bannerRows, offersConfig]) => {
+        if (!Array.isArray(bannerRows)) throw new Error('La lista de banners recibida no es válida.');
+        if (active) {
+          setBanners(bannerRows);
+          setOffersDeadline(offersConfig.ofertas_hasta || null);
+        }
+      })
+      .catch((requestError) => {
+        console.error('No se pudieron cargar las promociones de la tienda:', requestError);
+        if (active) {
+          setBanners([]);
+          setOffersDeadline(null);
+        }
+      })
+      .finally(() => {
+        if (active) setBannersLoading(false);
       });
     return () => { active = false; };
   }, []);
@@ -187,31 +231,14 @@ export default function Storefront({ onEmployeeLogin }) {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 pb-20 pt-5 sm:px-6 sm:pt-8 lg:px-8">
-        <section className="relative isolate overflow-hidden rounded-[1.75rem] border border-emerald-100/80 bg-gradient-to-br from-emerald-50 via-white to-slate-100 px-6 py-10 sm:px-10 sm:py-14 lg:px-16">
-          <div aria-hidden="true" className="absolute -right-12 -top-20 -z-10 h-64 w-64 rounded-full bg-emerald-100/70 blur-3xl" />
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-800">
-              <ShieldCheck size={14} /> Tu tienda de confianza
-            </span>
-            <h1 className="mt-5 text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
-              ¡Bienvenido a {business?.nombre || 'Tienda Forty'}! <span className="text-emerald-700">Todo lo que necesitas para tu hogar.</span>
-            </h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Descubre nuestras ofertas exclusivas de la semana.</p>
-            <a href="#ofertas" className="mt-7 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white shadow-sm shadow-emerald-900/10 transition hover:bg-emerald-800">
-              Ver ofertas <ArrowRight size={16} />
-            </a>
-          </div>
-          <div aria-hidden="true" className="absolute -bottom-16 -right-6 hidden h-64 w-64 items-center justify-center rounded-full border border-emerald-200/70 text-emerald-100 md:flex">
-            <span className="h-48 w-48 rounded-full border border-emerald-200/70" />
-            <span className="absolute h-32 w-32 rounded-full border border-emerald-200/70" />
-          </div>
-        </section>
+        <HeroCarousel banners={banners} businessName={business?.nombre} loading={bannersLoading} />
 
         <div className="mt-10 space-y-11">
           {loading && <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-slate-500"><LoaderCircle size={18} className="animate-spin text-emerald-600" /> Cargando catálogo…</div>}
           {error && !loading && <div role="alert" className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center"><p className="font-semibold text-slate-800">No pudimos cargar el catálogo</p><p className="mt-2 text-sm text-slate-500">{error}</p></div>}
           {!loading && !error && <>
             <div id="ofertas">
+              <OfferCountdown deadline={offersDeadline} />
               <ProductSection
                 title="Ofertas Destacadas"
                 description="Precios especiales seleccionados para ti esta semana."

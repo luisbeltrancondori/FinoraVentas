@@ -1,6 +1,7 @@
 import { Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
+import { api, assetUrl } from '../api.js';
 import { useCart } from '../contexts/CartContext.jsx';
-import { assetUrl } from '../api.js';
 
 const currency = new Intl.NumberFormat('es-BO', {
   style: 'currency',
@@ -11,6 +12,8 @@ const SHOP_WHATSAPP = '59162108877';
 
 export default function CartDrawer({ open, onClose }) {
   const { items, total, updateQuantity, removeItem, clearCart } = useCart();
+  const [submitting, setSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
   if (!open) return null;
 
   const orderMessage = [
@@ -24,10 +27,26 @@ export default function CartDrawer({ open, onClose }) {
   ].join('\n');
   const checkoutUrl = `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(orderMessage)}`;
 
-  function handleCheckout() {
+  async function handleCheckout() {
+    if (submitting) return;
+    setSubmitting(true);
+    setCheckoutError('');
     window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
-    clearCart();
-    onClose();
+    try {
+      await api('/api/proformas-web', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: items.map((item) => ({ producto_id: item.id, cantidad: item.cantidad })),
+          total,
+        }),
+      });
+      clearCart();
+      onClose();
+    } catch (error) {
+      setCheckoutError(`No se pudo registrar el pedido en la tienda: ${error.message}. Tu carrito sigue guardado.`);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -76,8 +95,9 @@ export default function CartDrawer({ open, onClose }) {
 
         {items.length > 0 && <footer className="space-y-4 border-t border-slate-100 bg-white p-5">
           <div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-600">Total del pedido</span><strong className="text-xl text-slate-900">{currency.format(total)}</strong></div>
-          <button type="button" onClick={handleCheckout} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700">
-            <ShoppingBag size={17} /> Realizar Pedido por WhatsApp
+          {checkoutError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs leading-5 text-rose-700">{checkoutError}</p>}
+          <button type="button" onClick={handleCheckout} disabled={submitting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60">
+            <ShoppingBag size={17} /> {submitting ? 'Registrando pedido…' : 'Realizar Pedido por WhatsApp'}
           </button>
           <p className="text-center text-[10px] leading-4 text-slate-400">El pedido se confirmará con la tienda por WhatsApp. No se realizará ningún cobro desde esta página.</p>
         </footer>}

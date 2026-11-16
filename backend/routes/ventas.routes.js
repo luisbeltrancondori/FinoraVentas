@@ -3,6 +3,7 @@ const controller = require('../controllers/ventas.controller');
 const { asyncHandler } = require('../utils/http');
 const { requirePermission } = require('../utils/auth');
 const clientsController = require('../controllers/clientes.controller');
+const proformasController = require('../controllers/proformas-web.controller');
 
 const router = express.Router();
 router.get('/clientes', requirePermission('sales.read'), asyncHandler(clientsController.list));
@@ -16,5 +17,7 @@ router.post('/ventas/:id/pagos', requirePermission('sales.write'), asyncHandler(
 router.post('/ventas', requirePermission('sales.write'), asyncHandler(controller.create));
 router.put('/ventas/:id', requirePermission('sales.write'), asyncHandler(controller.update));
 router.delete('/ventas/:id', requirePermission('sales.write'), asyncHandler(controller.cancel));
+router.get('/proformas-web', requirePermission('sales.read'), asyncHandler(proformasController.list));
+router.post('/proformas-web/:id/convertir-venta', requirePermission('sales.write'), asyncHandler(proformasController.convertToSale));
 
 module.exports = router;
