@@ -39,4 +39,4 @@ Los banners promocionales se administran desde **Configuración y administració
 
 Resumen, punto de venta, historial de ventas, compras, caja y turnos, catálogo de productos con URL de imagen, marcas, presentaciones, proveedores, Kardex, inventario físico, sucursales, usuarios, roles y perfil.
 
-La URL de API del frontend se configura con `VITE_API_URL` (en Docker local apunta a `http://localhost:4000`). El modo actual de Docker sirve Vite para desarrollo local; para producción pública se debe servir el frontend mediante un servidor estático/reverse proxy con HTTPS y configurar `NODE_ENV=production`, `POS_SESSION_SECRET` y `FRONTEND_ORIGIN`.
+La URL de API del frontend se configura con `VITE_API_URL` (en Docker local apunta a `http://localhost:4000`). El modo actual de Docker sirve Vite para desarrollo local; para producción pública se debe servir el frontend mediante un servidor estático/reverse proxy con HTTPS y configurar `NODE_ENV=production`, `POS_SESSION_SECRET` y `FRONTEND_ORIGIN`   .
