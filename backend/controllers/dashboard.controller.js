@@ -3,7 +3,7 @@ const { ApiError, getNegocioId } = require('../utils/http');
 
 async function summary(req, res) {
   const negocioId = await getNegocioId(req);
-  const [metrics, sellers, payments, bestSellers, bestMargins, expirations, cashTurns, salesTime] = await Promise.all([
+  const [metrics, sellers, payments, bestSellers, bestMargins, expirations, lowStock, cashTurns, salesTime] = await Promise.all([
     pool.query(
       `WITH month_sales AS (
          SELECT v.id, v.total
@@ -131,6 +131,17 @@ async function summary(req, res) {
       [negocioId],
     ),
     pool.query(
+      `SELECT p.id AS producto_id, p.nombre AS producto_nombre,
+              p.stock_actual, p.stock_minimo
+         FROM productos p
+        WHERE p.negocio_id = $1
+          AND p.activo IS DISTINCT FROM FALSE
+          AND p.stock_actual <= p.stock_minimo
+        ORDER BY p.stock_actual ASC, p.nombre
+        LIMIT 10`,
+      [negocioId],
+    ),
+    pool.query(
       `SELECT t.id, COALESCE(u.nombre, 'Usuario no disponible') AS usuario_nombre,
               t.fecha_apertura, t.fecha_cierre, t.monto_real_contado AS saldo_final,
               t.estado
@@ -176,6 +187,7 @@ async function summary(req, res) {
     top_productos: bestSellers.rows,
     top_ganancias: bestMargins.rows,
     proximos_vencer: expirations.rows,
+    stock_bajo: lowStock.rows,
     movimientos_caja: cashTurns.rows,
   });
 }

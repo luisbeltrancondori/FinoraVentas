@@ -4,6 +4,7 @@ const { asyncHandler } = require('../utils/http');
 const { requirePermission } = require('../utils/auth');
 
 const router = express.Router();
+router.get('/compras/sugerido', requirePermission('purchases.read'), asyncHandler(controller.suggested));
 router.get('/compras', requirePermission('purchases.read'), asyncHandler(controller.list));
 router.get('/compras/:id', requirePermission('purchases.read'), asyncHandler(controller.detail));
 router.post('/compras/:id/pagos', requirePermission('purchases.write'), asyncHandler(controller.registerPayment));

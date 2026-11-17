@@ -229,6 +229,11 @@ export default function DashboardPage({ data, negocioId, onNavigate }) {
             <tr key={lot.producto_id + lot.lote + lot.fecha_vencimiento}><td className="px-3 py-3"><span className="block font-semibold text-slate-700 dark:text-slate-200">{lot.producto_nombre}</span><span className="mt-0.5 block text-[10px] text-slate-400">Lote {lot.lote}</span></td><td className="px-3 py-3 text-amber-700 dark:text-amber-300">{fullDate(lot.fecha_vencimiento)}</td><td className="px-3 py-3 text-right font-medium text-slate-700 dark:text-slate-200">{number(lot.cantidad)}</td></tr>
           )} />
         </Panel>
+        <Panel title="Productos próximos a agotarse" subtitle="Productos activos con stock igual o menor al mínimo configurado">
+          <Table headers={['Producto', 'Stock actual', 'Stock mínimo']} rows={data?.stock_bajo} emptyText="No hay productos próximos a agotarse." renderRow={(product) => (
+            <tr key={product.producto_id}><td className="px-3 py-3 font-semibold text-slate-700 dark:text-slate-200">{product.producto_nombre}</td><td className="px-3 py-3 text-right font-medium text-rose-700 dark:text-rose-300">{number(product.stock_actual)}</td><td className="px-3 py-3 text-right text-slate-600 dark:text-slate-300">{number(product.stock_minimo)}</td></tr>
+          )} />
+        </Panel>
         <Panel title="Últimos movimientos de caja" subtitle="Aperturas y cierres más recientes">
           <Table headers={['Usuario', 'Apertura / cierre', 'Saldo final']} rows={data?.movimientos_caja} emptyText="Todavía no hay turnos de caja." renderRow={(turn) => (
             <tr key={turn.id}><td className="px-3 py-3 font-semibold text-slate-700 dark:text-slate-200">{turn.usuario_nombre}</td><td className="px-3 py-3"><span className="block text-slate-600 dark:text-slate-300">{fullDate(turn.fecha_apertura)}</span><span className="mt-0.5 block text-[10px] text-slate-400">{turn.fecha_cierre ? `Cierre: ${fullDate(turn.fecha_cierre)}` : 'Turno abierto'}</span></td><td className="px-3 py-3 text-right font-semibold text-slate-800 dark:text-slate-100">{turn.saldo_final == null ? '—' : money(turn.saldo_final)}</td></tr>

@@ -18,6 +18,7 @@ const groups = [
   { title: 'Compras', icon: ArrowDownToLine, items: [
     { id: 'purchase-new', label: 'Nueva compra', icon: ArrowDownToLine, permission: 'purchases.write' },
     { id: 'purchases', label: 'Historial de compras', icon: ClipboardList, permission: 'purchases.read' },
+    { id: 'purchase-suggested', label: 'Sugerido de compras', icon: Boxes, permission: 'purchases.read' },
   ] },
   { title: 'Productos', icon: Package, items: [
     { id: 'products', label: 'Catálogo general', icon: Package, permission: 'products.read' },

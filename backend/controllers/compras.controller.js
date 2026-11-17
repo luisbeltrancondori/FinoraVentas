@@ -12,6 +12,81 @@ const {
 const paymentMethods = ['efectivo', 'transferencia', 'credito'];
 const paymentReceiptMethods = ['efectivo', 'transferencia'];
 
+async function suggested(req, res) {
+  const requestedBranchId = req.query.sucursal_id;
+  if (requestedBranchId) {
+    const branchId = requireUuid(requestedBranchId, 'sucursal_id');
+    const headerBusinessId = req.get('x-negocio-id');
+    if (headerBusinessId && headerBusinessId.toLowerCase() !== branchId.toLowerCase()) {
+      throw new ApiError(400, 'sucursal_id debe coincidir con la sucursal activa.');
+    }
+    req.query.negocio_id = branchId;
+  }
+  const negocioId = await getNegocioId(req);
+  const daysCoverage = req.query.dias_cobertura === undefined ? 7 : Number(req.query.dias_cobertura);
+  if (!Number.isInteger(daysCoverage) || daysCoverage < 1 || daysCoverage > 365) {
+    throw new ApiError(400, 'dias_cobertura debe ser un número entero entre 1 y 365.');
+  }
+
+  const result = await pool.query(
+    `WITH sales_30_days AS (
+       SELECT vd.producto_id,
+              SUM(vd.cantidad) AS units_sold,
+              MIN(v.fecha_venta)::date AS first_sale_date
+         FROM ventas v
+         JOIN venta_detalles vd ON vd.venta_id = v.id
+        WHERE v.negocio_id = $1
+          AND UPPER(v.estado) <> 'ANULADA'
+          AND v.fecha_venta >= CURRENT_DATE - INTERVAL '30 days'
+          AND v.fecha_venta < CURRENT_DATE + INTERVAL '1 day'
+        GROUP BY vd.producto_id
+     ),
+     product_sales AS (
+       SELECT p.id AS producto_id,
+              p.nombre AS producto_nombre,
+              p.proveedor_id,
+              COALESCE(pr.nombre_empresa, 'Sin proveedor') AS proveedor_nombre,
+              p.stock_actual,
+              COALESCE(p.stock_minimo, 0) AS stock_minimo,
+              p.precio_compra AS costo_unitario,
+              p.fecha_vencimiento,
+              COALESCE(s.units_sold, 0) AS units_sold,
+              CASE
+                WHEN s.first_sale_date IS NULL THEN 0
+                ELSE COALESCE(s.units_sold, 0) /
+                     CASE
+                       WHEN s.first_sale_date > CURRENT_DATE - INTERVAL '30 days'
+                         THEN GREATEST(CURRENT_DATE - s.first_sale_date, 1)
+                       ELSE 30
+                     END
+              END AS consumo_diario
+         FROM productos p
+         LEFT JOIN proveedores pr
+           ON pr.id = p.proveedor_id AND pr.negocio_id = p.negocio_id
+         LEFT JOIN sales_30_days s ON s.producto_id = p.id
+        WHERE p.negocio_id = $1
+          AND p.activo IS DISTINCT FROM FALSE
+     ),
+     recommendations AS (
+       SELECT producto_id, producto_nombre, proveedor_id, proveedor_nombre,
+              stock_actual, stock_minimo, costo_unitario, fecha_vencimiento,
+              consumo_diario,
+              CASE WHEN consumo_diario > 0 THEN stock_actual / consumo_diario END AS dias_restantes,
+              GREATEST(CEIL((consumo_diario * $2) + stock_minimo - stock_actual), 0)::int AS cantidad_sugerida
+         FROM product_sales
+     )
+     SELECT producto_id, producto_nombre, proveedor_id, proveedor_nombre,
+            stock_actual, stock_minimo, costo_unitario, fecha_vencimiento,
+            consumo_diario, dias_restantes, cantidad_sugerida
+       FROM recommendations
+      WHERE stock_actual <= stock_minimo
+         OR dias_restantes <= $2
+      ORDER BY dias_restantes ASC NULLS LAST, stock_actual ASC, producto_nombre`,
+    [negocioId, daysCoverage],
+  );
+  res.json({ dias_cobertura: daysCoverage, sugerencias: result.rows });
+}
+
 async function list(req, res) {
   const negocioId = await getNegocioId(req);
   const result = await pool.query(
@@ -480,4 +555,4 @@ async function registerPayment(req, res) {
   }
 }
 
-module.exports = { cancel, create, detail, list, registerPayment, remove, update };
+module.exports = { cancel, create, detail, list, registerPayment, remove, suggested, update };

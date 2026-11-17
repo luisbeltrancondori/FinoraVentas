@@ -10,6 +10,7 @@ import InventoryPage from './components/InventoryPage.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import PosPage from './components/PosPage.jsx';
 import PurchasesPage from './components/PurchasesPage.jsx';
+import PurchaseSuggestionsPage from './components/PurchaseSuggestionsPage.jsx';
 import SalesPage from './components/SalesPage.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Spinner from './components/Spinner.jsx';
@@ -32,6 +33,7 @@ const pageTitles = {
   clients: 'Clientes',
   'purchase-new': 'Nueva compra',
   purchases: 'Historial de compras',
+  'purchase-suggested': 'Sugerido de compras',
   products: 'Catálogo general',
   categories: 'Categorías',
   brands: 'Marcas',
@@ -72,6 +74,7 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [turn, setTurn] = useState(null);
   const [dashboard, setDashboard] = useState(null);
+  const [purchaseDraft, setPurchaseDraft] = useState(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [connection, setConnection] = useState('checking');
   const [toast, setToast] = useState(null);
@@ -284,6 +287,11 @@ export default function App() {
   const onSaleRefresh = useCallback(async () => {
     await Promise.all([refreshProducts(), refreshTurn(), refreshDashboard()]);
   }, [refreshDashboard, refreshProducts, refreshTurn]);
+  const totalInventoryAlerts = inventoryAlerts.vencimientos.length + inventoryAlerts.bajo_stock.length;
+  const navigatePurchase = (nextPage) => {
+    if (nextPage !== 'purchase-new') setPurchaseDraft(null);
+    setPage(nextPage);
+  };
 
   let content = null;
   if (page === 'dashboard') content = <DashboardPage data={dashboard} negocioId={negocioId} onNavigate={setPage} />;
@@ -297,8 +305,20 @@ export default function App() {
   else if (page === 'proformas') content = <ProformasPage negocioId={negocioId} business={currentBusiness} cashier={user.nombre} canManage={can('sales.write')} onSaleRefresh={onSaleRefresh} notify={notify} />;
   else if (page === 'clients') content = <ClientesPage negocioId={negocioId} canManage={can('sales.write')} notify={notify} />;
   else if (page === 'banners') content = <BannersAdminPage negocioId={negocioId} notify={notify} />;
-  else if (page === 'purchases' || page === 'purchase-new') {
-    content = <PurchasesPage products={products} negocioId={negocioId} business={currentBusiness} notify={notify} onRefresh={refreshInventory} canManage={can('purchases.write')} openFormInitially={page === 'purchase-new'} onNavigate={setPage} />;
+  else if (page === 'purchase-suggested') {
+    content = <PurchaseSuggestionsPage
+      negocioId={negocioId}
+      business={currentBusiness}
+      user={user}
+      canManage={can('purchases.write')}
+      notify={notify}
+      onGeneratePurchase={(draft) => {
+        setPurchaseDraft({ ...draft, createdAt: Date.now() });
+        setPage('purchase-new');
+      }}
+    />;
+  } else if (page === 'purchases' || page === 'purchase-new') {
+    content = <PurchasesPage products={products} negocioId={negocioId} business={currentBusiness} notify={notify} onRefresh={refreshInventory} canManage={can('purchases.write')} openFormInitially={page === 'purchase-new'} initialDraft={purchaseDraft} onNavigate={navigatePurchase} />;
   } else if (page === 'cash') content = <CashPage negocioId={negocioId} turn={turn} onRefresh={onSaleRefresh} notify={notify} />;
   else if (['branches', 'users', 'suppliers', 'kardex', 'physical', 'adjust-positive', 'adjust-negative', 'profile'].includes(page)) {
     content = <AdminPage view={page} negocioId={negocioId} businesses={businesses} business={currentBusiness} user={user} products={products} canManage={can('products.manage')} canAdjust={can('inventory.write')} notify={notify} onRefresh={refreshSession} onInventoryRefresh={refreshInventory} />;
@@ -336,9 +356,9 @@ export default function App() {
             {can('cash.read') && <span className={`hidden rounded-full px-3 py-1 text-[11px] font-bold sm:inline ${turn ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>{turn ? 'Caja abierta' : 'Caja cerrada'}</span>}
             <button type="button" onClick={() => setDarkMode((value) => !value)} aria-label={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'} title={darkMode ? 'Modo claro' : 'Modo oscuro'} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">{darkMode ? <Sun size={17} /> : <Moon size={17} />}</button>
             {can('products.read') && <div ref={notificationsRef} className="relative">
-              <button type="button" aria-expanded={notificationsOpen} aria-label={`Notificaciones (${inventoryAlerts.vencimientos.length + inventoryAlerts.bajo_stock.length})`} title="Notificaciones de inventario" onClick={() => { setNotificationsOpen((value) => !value); setProfileMenuOpen(false); if (!notificationsOpen) loadInventoryAlerts(); }} className="relative grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
+              <button type="button" aria-expanded={notificationsOpen} aria-label={`Notificaciones (${totalInventoryAlerts})`} title="Notificaciones de inventario" onClick={() => { setNotificationsOpen((value) => !value); setProfileMenuOpen(false); if (!notificationsOpen) loadInventoryAlerts(); }} className="relative grid h-10 w-10 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
                 <Bell size={17} />
-                {(inventoryAlerts.vencimientos.length + inventoryAlerts.bajo_stock.length > 0) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-500 dark:border-slate-900" />}
+                {totalInventoryAlerts > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-rose-500 px-1 text-[10px] font-bold leading-none text-white dark:border-slate-900">{totalInventoryAlerts}</span>}
               </button>
               {notificationsOpen && <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
                 <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-700"><div><p className="text-sm font-bold text-slate-900 dark:text-slate-100">Notificaciones</p><p className="text-[11px] text-slate-500 dark:text-slate-400">Alertas de inventario</p></div><button type="button" onClick={loadInventoryAlerts} className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400">Actualizar</button></div>
@@ -367,7 +387,7 @@ export default function App() {
       </header>
       <main className="mx-auto max-w-[1800px] p-4 sm:p-6 lg:p-8">
         {contentLoading ? <Spinner label="Cargando datos de la sucursal…" /> : <Suspense fallback={<Spinner label="Cargando resumen gerencial…" />}>{content}</Suspense>}
-        <p className="mt-8 text-center text-[11px] text-slate-400">{currentBusiness?.nombre || 'Sistema POS'} · {user.nombre}</p>
+        <p className="mt-8 pb-2 text-center text-xs text-gray-400">© 2026 · Finora POS — Desarrollado por SOLUCIONES INFORMATICAS LBC</p>
       </main>
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

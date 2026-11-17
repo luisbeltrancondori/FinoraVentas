@@ -178,7 +178,7 @@ function SupplierPaymentModal({ detail, loading, saving, onClose, onSave }) {
   );
 }
 
-function NewPurchase({ products, suppliers, negocioId, business, notify, onSaved, onBack, initialPurchase = null }) {
+function NewPurchase({ products, suppliers, negocioId, business, notify, onSaved, onBack, initialPurchase = null, initialDraft = null }) {
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -188,21 +188,21 @@ function NewPurchase({ products, suppliers, negocioId, business, notify, onSaved
   const [quantity, setQuantity] = useState('1');
   const [unitCost, setUnitCost] = useState('');
   const [expirationDate, setExpirationDate] = useState('');
-  const [items, setItems] = useState(() => (initialPurchase?.detalles || []).map((item, index) => ({
+  const [items, setItems] = useState(() => (initialPurchase?.detalles || initialDraft?.items || []).map((item, index) => ({
     rowId: `${item.id || item.producto_id}-${index}`,
     producto_id: item.producto_id,
-    nombre: item.nombre,
+    nombre: item.nombre || item.producto_nombre,
     cantidad: Number(item.cantidad),
-    costo_unitario: Number(item.precio_costo_unitario),
+    costo_unitario: Number(item.precio_costo_unitario ?? item.costo_unitario) || 0,
     fecha_vencimiento: item.fecha_vencimiento ? String(item.fecha_vencimiento).slice(0, 10) : null,
   })));
-  const [supplierQuery, setSupplierQuery] = useState(initialPurchase?.compra?.proveedor_nombre || '');
+  const [supplierQuery, setSupplierQuery] = useState(initialPurchase?.compra?.proveedor_nombre || initialDraft?.supplier?.nombre_empresa || '');
   const [supplier, setSupplier] = useState(() => initialPurchase?.compra?.proveedor_id ? {
     id: initialPurchase.compra.proveedor_id,
     nombre_empresa: initialPurchase.compra.proveedor_nombre,
     nit_ci: initialPurchase.compra.proveedor_nit_ci,
     telefono: initialPurchase.compra.proveedor_telefono,
-  } : null);
+  } : initialDraft?.supplier || null);
   const [supplierOptionsOpen, setSupplierOptionsOpen] = useState(false);
   const [invoice, setInvoice] = useState(initialPurchase?.compra?.numero_factura || '');
   const [supplierNit, setSupplierNit] = useState('');
@@ -388,7 +388,7 @@ function NewPurchase({ products, suppliers, negocioId, business, notify, onSaved
   );
 }
 
-export default function PurchasesPage({ products, negocioId, business, notify, onRefresh, canManage, openFormInitially = false, onNavigate }) {
+export default function PurchasesPage({ products, negocioId, business, notify, onRefresh, canManage, openFormInitially = false, initialDraft = null, onNavigate }) {
   const [suppliers, setSuppliers] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -510,7 +510,7 @@ export default function PurchasesPage({ products, negocioId, business, notify, o
 
   if (openFormInitially || editingPurchase) {
     return <NewPurchase
-      key={editingPurchase?.compra.id || `new-${negocioId}`}
+      key={editingPurchase?.compra.id || `new-${negocioId}-${initialDraft?.createdAt || ''}`}
       products={products}
       suppliers={suppliers}
       negocioId={negocioId}
@@ -518,6 +518,7 @@ export default function PurchasesPage({ products, negocioId, business, notify, o
       notify={notify}
       onSaved={async () => { await Promise.all([load(), onRefresh()]); }}
       initialPurchase={editingPurchase}
+      initialDraft={openFormInitially ? initialDraft : null}
       onBack={() => {
         setEditingPurchase(null);
         if (openFormInitially) onNavigate('purchases');
