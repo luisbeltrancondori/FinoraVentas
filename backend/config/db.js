@@ -83,6 +83,7 @@ async function applyMigrations() {
     '../migrations/014_contact_messages.sql',
     '../migrations/015_proformas_web.sql',
     '../migrations/016_banners_carrusel.sql',
+    '../migrations/017_security_constraints.sql',
   ];
   for (const migration of migrationPaths) {
     const migrationPath = path.resolve(__dirname, migration);

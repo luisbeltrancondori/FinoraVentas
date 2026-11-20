@@ -55,7 +55,7 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'La sesión ya no es válida.', code: 'SESSION_INVALID' });
     }
     req.user = user;
-    const requestedBusiness = req.get('x-negocio-id') || req.session.activeBusinessId;
+    const requestedBusiness = (req.get('x-negocio-id') || req.session.activeBusinessId || '').toLowerCase() || null;
     if (requestedBusiness && !user.business_ids.includes(requestedBusiness)) {
       return res.status(403).json({ error: 'No tienes acceso a esta sucursal.', code: 'BUSINESS_FORBIDDEN' });
     }

@@ -84,6 +84,13 @@ async function create(req, res) {
     const subtotal = roundMoney(lines.reduce((sum, item) => sum + item.lineTotal, 0));
     const discount = requireNumber(req.body.descuento ?? 0, 'descuento');
     if (discount > subtotal) throw new ApiError(400, 'El descuento no puede superar el subtotal.');
+    // Validar descuento máximo según rol (TRX-02):
+    // cajeros y almaceneros: máx. 10% del subtotal; administradores: sin límite
+    const maxDiscountRate = req.user?.role === 'administrador' ? 1.0 : 0.10;
+    const maxDiscount = roundMoney(subtotal * maxDiscountRate);
+    if (discount > maxDiscount) {
+      throw new ApiError(403, `El descuento máximo permitido para su rol es ${maxDiscountRate * 100}% del subtotal (${maxDiscount}).`);
+    }
     const total = roundMoney(subtotal - discount);
     const cashTendered = method === 'efectivo'
       ? requireNumber(req.body.monto_efectivo ?? req.body.efectivo_recibido ?? total, 'monto_efectivo')
@@ -529,7 +536,7 @@ async function cancel(req, res) {
       throw new ApiError(409, 'La venta ya está anulada.');
     }
     const payments = await client.query(
-      'SELECT 1 FROM pagos_venta WHERE venta_id = $1 LIMIT 1',
+      'SELECT 1 FROM pagos_venta WHERE venta_id = $1 LIMIT 1 FOR SHARE',
       [saleId],
     );
     if (payments.rowCount) throw new ApiError(409, 'No se puede anular una venta que ya tiene abonos registrados.');

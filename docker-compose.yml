@@ -4,16 +4,16 @@ services:
     container_name: pos_database
     restart: always
     environment:
-      POSTGRES_USER: admin_pos
-      POSTGRES_PASSWORD: pos_password_seguro
-      POSTGRES_DB: sistema_ventas
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # Solo accesible desde este host, no desde la red
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./schema_pos_maestro.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin_pos -d sistema_ventas"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -25,13 +25,14 @@ services:
     ports:
       - "4000:4000"
     environment:
-      DATABASE_URL: postgres://admin_pos:pos_password_seguro@db:5432/sistema_ventas
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: production
       PORT: 4000
       NEGOCIO_NOMBRE: Mi Negocio
       SCHEMA_PATH: /app/schema_pos_maestro.sql
       UPLOAD_DIR: /app/uploads
-      FRONTEND_ORIGIN: http://localhost:3000
-      POS_SESSION_SECRET: ${POS_SESSION_SECRET:-}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      POS_SESSION_SECRET: ${POS_SESSION_SECRET:?POS_SESSION_SECRET no definida - agrega esta variable al archivo .env}
     volumes:
       - ./schema_pos_maestro.sql:/app/schema_pos_maestro.sql:ro
       - ./uploads:/app/uploads

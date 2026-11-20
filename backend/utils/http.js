@@ -41,7 +41,6 @@ function roundMoney(value) {
 async function getNegocioId(req, client = pool) {
   const requestedId = req.get('x-negocio-id')
     || req.query.negocio_id
-    || req.body?.negocio_id
     || req.session?.activeBusinessId
     || process.env.NEGOCIO_ID;
   if (requestedId) {

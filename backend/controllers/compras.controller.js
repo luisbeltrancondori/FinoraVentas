@@ -485,6 +485,13 @@ async function cancel(req, res) {
     if (!result.rowCount) throw new ApiError(404, 'La compra solicitada no existe.');
     const purchase = result.rows[0];
     if (purchase.estado === 'anulada') throw new ApiError(409, 'La compra ya está anulada.');
+    const existingPayments = await client.query(
+      'SELECT 1 FROM pagos_compra WHERE compra_id = $1 LIMIT 1',
+      [purchaseId],
+    );
+    if (existingPayments.rowCount) {
+      throw new ApiError(409, 'Esta compra tiene pagos registrados y no puede anularse. Revierta los pagos antes de anularla.');
+    }
     const details = await client.query(
       'SELECT * FROM compra_detalles WHERE compra_id = $1 ORDER BY id FOR UPDATE',
       [purchaseId],
@@ -528,6 +535,19 @@ async function registerPayment(req, res) {
     const purchase = result.rows[0];
     if (purchase.estado === 'anulada') throw new ApiError(409, 'No se puede pagar una compra anulada.');
     if (purchase.metodo_pago !== 'credito') throw new ApiError(409, 'Solo se pueden registrar abonos para compras a crédito.');
+
+    // TRX-03: Verificar turno de caja abierto cuando el pago es en efectivo
+    const turnResult = await client.query(
+      `SELECT id FROM turnos_caja
+        WHERE negocio_id = $1 AND UPPER(estado) = 'ABIERTA'
+        ORDER BY fecha_apertura DESC LIMIT 1 FOR UPDATE`,
+      [negocioId],
+    );
+    if (method === 'efectivo' && !turnResult.rowCount) {
+      throw new ApiError(409, 'Debes tener una caja abierta para registrar pagos en efectivo a proveedores.');
+    }
+    const activeTurn = turnResult.rows[0] || null;
+
     const balance = roundMoney(Number(purchase.saldo_pendiente || 0));
     if (balance <= 0) throw new ApiError(409, 'La deuda de esta compra ya está pagada.');
     if (amount > balance) throw new ApiError(400, 'El abono no puede superar el saldo pendiente.');
@@ -545,6 +565,15 @@ async function registerPayment(req, res) {
         RETURNING id, total, saldo_pendiente, estado`,
       [remaining, state, purchaseId, negocioId],
     );
+    // TRX-03: Registrar egreso en el turno de caja si el pago fue en efectivo
+    if (method === 'efectivo' && activeTurn) {
+      await client.query(
+        `UPDATE turnos_caja
+            SET total_egresos_proveedores = total_egresos_proveedores + $1
+          WHERE id = $2`,
+        [amount, activeTurn.id],
+      );
+    }
     await client.query('COMMIT');
     res.status(201).json({ pago: payment.rows[0], compra: updated.rows[0] });
   } catch (error) {

@@ -4,7 +4,7 @@ const { asyncHandler } = require('../utils/http');
 const { requirePermission, requireRole } = require('../utils/auth');
 
 const router = express.Router();
-router.get('/negocios', asyncHandler(controller.businesses));
+router.get('/negocios', requireRole('administrador'), asyncHandler(controller.businesses));
 router.post('/negocios', requireRole('administrador'), asyncHandler(controller.createBusiness));
 router.patch('/negocios/:id', requireRole('administrador'), asyncHandler(controller.updateBusiness));
 router.get('/usuarios', requireRole('administrador'), asyncHandler(controller.listUsers));

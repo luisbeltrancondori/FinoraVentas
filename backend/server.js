@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 const crypto = require('node:crypto');
@@ -23,8 +25,66 @@ if (!process.env.POS_SESSION_SECRET) {
 }
 
 app.disable('x-powered-by');
+
+// --- Headers de seguridad HTTP (SEC-09) ---
+// helmet() activa: X-Content-Type-Options, X-Frame-Options,
+// Strict-Transport-Security, X-DNS-Prefetch-Control, etc.
+// crossOriginResourcePolicy se relaja a cross-origin solo para
+// el path /uploads (imágenes servidas al frontend en otro origen).
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+// --- Rate limiting (SEC-08) ---
+// Fuerza bruta en login: máx. 10 intentos por IP cada 15 minutos
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de inicio de sesión. Intente nuevamente en 15 minutos.', code: 'TOO_MANY_REQUESTS' },
+});
+// Resto de /api/auth (logout, me, setup): máx. 30 req/min
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intente nuevamente en un minuto.', code: 'TOO_MANY_REQUESTS' },
+});
+// API general autenticada: máx. 300 req/min por IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intente nuevamente en un minuto.', code: 'TOO_MANY_REQUESTS' },
+});
+// Rutas públicas sin autenticación (formularios): máx. 20 req/min por IP (SEC-10)
+// Protege /api/public/contacto y /api/proformas-web contra spam/scraping.
+const publicFormLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intente nuevamente en un minuto.', code: 'TOO_MANY_REQUESTS' },
+});
+
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth', authLimiter);
+app.use('/api/public/contacto', publicFormLimiter);
+app.use('/api/proformas-web', publicFormLimiter);
+app.use('/api', apiLimiter);
+
+const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+if (process.env.NODE_ENV === 'production' && frontendOrigin.startsWith('http://')) {
+  console.warn(
+    '[SEC-16] ADVERTENCIA: FRONTEND_ORIGIN usa HTTP en producción. '
+    + 'Configura FRONTEND_ORIGIN=https://tudominio.com en el archivo .env para activar CORS seguro.',
+  );
+}
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000',
+  origin: frontendOrigin,
   credentials: true,
 }));
 app.use('/uploads', express.static(uploadDirectory, {
@@ -52,10 +112,12 @@ app.use(session({
     maxAge: 8 * 60 * 60 * 1000,
   },
 }));
-app.use('/api', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', require('./routes/public.routes'));
 app.use('/api', requireAuth);
+// dashboardRoutes movido aquí (post-requireAuth) para que el guard
+// global cubra cualquier ruta futura que se agregue sin auth propia (SEC-11)
+app.use('/api', dashboardRoutes);
 app.use('/api', require('./routes/reports.routes'));
 app.use('/api', require('./routes/admin.routes'));
 app.use('/api', require('./routes/banners.routes'));

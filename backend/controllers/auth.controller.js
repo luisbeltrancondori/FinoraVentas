@@ -1,7 +1,15 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('node:crypto');
 const { pool } = require('../config/db');
 const { ApiError, requireUuid } = require('../utils/http');
 const { effectivePermissions, loadUser } = require('../utils/auth');
+
+// Hash dummy generado en arranque para mantener el patrón anti-timing-attack
+// en el login (SEC-12): evita que el hash fijo en el repo sea un oráculo.
+let _dummyHash = null;
+(async () => {
+  _dummyHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+})();
 
 const MIN_PASSWORD_LENGTH = 12;
 const DEFAULT_SESSION_DURATION = 8 * 60 * 60 * 1000;
@@ -93,7 +101,7 @@ async function login(req, res) {
   );
   const matches = result.rowCount
     ? await bcrypt.compare(password, result.rows[0].password_hash)
-    : await bcrypt.compare(password, '$2b$12$4Pq/mrCLqXpXwFHf6q89yemF/Mh8PfAKvZFhjl8lhh/sxhj0lhBPy');
+    : await bcrypt.compare(password, _dummyHash || await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12));
   if (!result.rowCount || !matches) throw new ApiError(401, 'Correo o contraseña incorrectos.');
 
   await new Promise((resolve, reject) => {
